@@ -83,7 +83,7 @@ def lambda_handler(event, context):
                             table.put_item(
                                 Item={
                                     'entity_tag_value': entity_tag_value,
-                                    'bucket_name': bucket_name,
+                                    'bucket_name': user_name,
                                     'event_time': event_time,
                                     'count': 1
                                 }
