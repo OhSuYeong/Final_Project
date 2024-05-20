@@ -12,6 +12,33 @@ def get_storage_class(days_difference):
     else:
         return 'DEEP_ARCHIVE'
 
+def get_object_key_by_etag(bucket_name, etag_value):
+    s3 = boto3.client('s3')
+
+    continuation_token = None
+    while True:
+        if continuation_token:
+            response = s3.list_objects_v2(Bucket=bucket_name, ContinuationToken=continuation_token)
+        else:
+            response = s3.list_objects_v2(Bucket=bucket_name)
+
+        if 'Contents' not in response:
+            print("버킷에 객체가 없습니다.")
+            return None
+
+        for obj in response['Contents']:
+            if obj['ETag'].strip('"') == etag_value:
+                return obj['Key']
+
+        # 다음 페이지로 이동
+        if response.get('IsTruncated'):
+            continuation_token = response.get('NextContinuationToken')
+        else:
+            break
+
+    print("해당 ETag 값을 가진 객체를 찾을 수 없습니다.")
+    return None
+
 def lambda_handler(event, context):
     # AWS 리소스 초기화
     s3 = boto3.client('s3')
@@ -43,7 +70,14 @@ def lambda_handler(event, context):
 
         try:
             # DynamoDB에서 해당 객체의 S3 키 가져오기
-            object_key = get_object_key(entity_tag_value, bucket_name)
+            object_key = get_object_key_by_etag(bucket_name, entity_tag_value)
+            
+            if object_key is None:
+                print(f"Object with ETag {entity_tag_value} not found in bucket {bucket_name}. Skipping.")
+                continue
+
+            print(f"Object key: {object_key}")
+            
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
                 print(f"Object {entity_tag_value} not found in bucket {bucket_name}. Deleting from DynamoDB.")
@@ -86,21 +120,4 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': 'Storage class update initiated for all objects'
     }
-
-def get_object_key(entity_tag_value, bucket_name):
-    # DynamoDB에서 해당 entity_tag_value와 bucket_name을 사용하여 S3 객체의 키를 가져오는 로직 구현
-    try:
-        # 해당 entity_tag_value와 bucket_name을 사용하여 S3 객체의 키를 가져오기
-        response = table.get_item(
-            Key={'entity_tag_value': entity_tag_value}
-        )
-        item = response.get('Item')
-        if item:
-            return item.get('object_key')
-        else:
-            print(f"No S3 object key found for entity_tag_value {entity_tag_value} in bucket {bucket_name}.")
-            return None
-    except Exception as e:
-        print(f"Error getting S3 object key from DynamoDB: {e}")
-        return None
 
