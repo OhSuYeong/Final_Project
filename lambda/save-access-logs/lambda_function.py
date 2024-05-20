@@ -5,14 +5,12 @@ from datetime import datetime
 from io import BytesIO
 
 def remove_quotes(input_string):
-    # 큰 따옴표를 제거하여 반환
     return input_string.replace('"', '')
 
 def get_entity_tag_value(s3_client, bucket_name, object_key):
     try:
         response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         entity_tags = remove_quotes(response['ETag'])
-        
         if entity_tags:
             return entity_tags
         else:
@@ -24,7 +22,7 @@ def get_entity_tag_value(s3_client, bucket_name, object_key):
 def get_storage_class(s3_client, bucket_name, object_key):
     try:
         response = s3_client.head_object(Bucket=bucket_name, Key=object_key)
-        return response.get('StorageClass', 'STANDARD')  # 기본값을 'STANDARD'로 설정
+        return response.get('StorageClass', 'STANDARD')
     except Exception as e:
         print(f"Error getting storage class for {object_key}: {e}")
         return None
@@ -39,7 +37,7 @@ def lambda_handler(event, context):
     prefix = f'AWSLogs/243795305209/CloudTrail/ap-northeast-1/{year_month}'
     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
     
-    for item in response['Contents']:
+    for item in response.get('Contents', []):
         key = item['Key']
         obj = s3.get_object(Bucket=bucket_name, Key=key)
 
@@ -54,22 +52,7 @@ def lambda_handler(event, context):
                 storage_class = get_storage_class(s3, user_bucket, object_key)
                 event_time = record['eventTime']
                 
-                if record['eventName'] == 'PutObject':
-                    # DynamoDB에 저장
-                    if entity_tag_value:
-                        table.put_item(
-                            Item={
-                                'entity_tag_value': entity_tag_value,
-                                'bucket_name': user_bucket,
-                                'event_time': event_time,
-                                'storage_class': storage_class,
-                                'count': 1
-                            }
-                        )
-                    else:
-                        print(f"Failed to get entity_tag_value for object: {object_key}")
-                elif record['eventName'] == 'GetObject' and 'response-content-disposition' not in record['requestParameters']:
-                    # DynamoDB에서 엔터티 태그 값으로 아이템 가져오기
+                if (record['eventName'] == 'GetObject' and 'response-content-disposition' not in record['requestParameters']) or record['eventName'] == 'PutObject':
                     try:
                         response = table.get_item(
                             Key={'entity_tag_value': entity_tag_value}
@@ -77,10 +60,18 @@ def lambda_handler(event, context):
                         item = response.get('Item')
                         
                         if item:
-                            # 아이템이 있으면 count 필드를 업데이트
+                            try:
+                                # 수정된 부분: 객체가 실제로 존재하지 않으면 DynamoDB에서 해당 아이템 삭제
+                                s3.head_object(Bucket=user_bucket, Key=object_key)
+                            except s3.exceptions.ClientError as e:
+                                if e.response['Error']['Code'] == '404':
+                                    table.delete_item(Key={'entity_tag_value': entity_tag_value})
+                                    print(f"Deleted item for non-existing object: {object_key}")
+                                else:
+                                    raise  # 다른 종류의 예외는 다시 발생시킴
+
                             current_count = item.get('count', 0)
                             new_count = current_count + 1
-                            # event_time 및 count 필드 업데이트
                             table.update_item(
                                 Key={'entity_tag_value': entity_tag_value},
                                 UpdateExpression='SET event_time = :val1, #count_field = :count_value, storage_class = :storage_class',
@@ -88,7 +79,6 @@ def lambda_handler(event, context):
                                 ExpressionAttributeValues={':val1': event_time, ':count_value': new_count, ':storage_class': storage_class}
                             )
                         else:
-                            # 아이템이 없으면 새로운 아이템 생성
                             table.put_item(
                                 Item={
                                     'entity_tag_value': entity_tag_value,
@@ -99,7 +89,7 @@ def lambda_handler(event, context):
                                 }
                             )
                     except Exception as e:
-                        print(f"Error getting item from DynamoDB: {e}")
+                        print(f"Error processing item for {object_key}: {e}")
                 else:
                     print(f"Skipping event with unsupported eventName: {record['eventName']}")
                     continue
