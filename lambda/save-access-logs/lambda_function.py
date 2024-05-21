@@ -52,7 +52,7 @@ def lambda_handler(event, context):
                 storage_class = get_storage_class(s3, user_bucket, object_key)
                 event_time = record['eventTime']
                 
-                if (record['eventName'] == 'GetObject' and 'response-content-disposition' not in record['requestParameters']) or record['eventName'] == 'PutObject':
+                if (record['eventName'] == 'GetObject' and 'response-content-disposition' in record['requestParameters']) or record['eventName'] == 'PutObject':
                     try:
                         response = table.get_item(
                             Key={'entity_tag_value': entity_tag_value}
@@ -60,16 +60,6 @@ def lambda_handler(event, context):
                         item = response.get('Item')
                         
                         if item:
-                            try:
-                                # 수정된 부분: 객체가 실제로 존재하지 않으면 DynamoDB에서 해당 아이템 삭제
-                                s3.head_object(Bucket=user_bucket, Key=object_key)
-                            except s3.exceptions.ClientError as e:
-                                if e.response['Error']['Code'] == '404':
-                                    table.delete_item(Key={'entity_tag_value': entity_tag_value})
-                                    print(f"Deleted item for non-existing object: {object_key}")
-                                else:
-                                    raise  # 다른 종류의 예외는 다시 발생시킴
-
                             current_count = item.get('count', 0)
                             new_count = current_count + 1
                             table.update_item(
