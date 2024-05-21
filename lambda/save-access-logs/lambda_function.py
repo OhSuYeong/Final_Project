@@ -36,7 +36,10 @@ def lambda_handler(event, context):
     year_month = now.strftime('%Y/%m')
     prefix = f'AWSLogs/243795305209/CloudTrail/ap-northeast-1/{year_month}'
     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-    
+
+    # 새로운 Lambda 클라이언트 생성
+    lambda_client = boto3.client('lambda')
+
     for item in response.get('Contents', []):
         key = item['Key']
         obj = s3.get_object(Bucket=bucket_name, Key=key)
@@ -51,14 +54,14 @@ def lambda_handler(event, context):
                 entity_tag_value = get_entity_tag_value(s3, user_bucket, object_key)
                 storage_class = get_storage_class(s3, user_bucket, object_key)
                 event_time = record['eventTime']
-                
+
                 if (record['eventName'] == 'GetObject' and 'response-content-disposition' in record['requestParameters']) or record['eventName'] == 'PutObject':
                     try:
                         response = table.get_item(
                             Key={'entity_tag_value': entity_tag_value}
                         )
                         item = response.get('Item')
-                        
+
                         if item:
                             current_count = item.get('count', 0)
                             new_count = current_count + 1
@@ -83,7 +86,15 @@ def lambda_handler(event, context):
                 else:
                     print(f"Skipping event with unsupported eventName: {record['eventName']}")
                     continue
-    
+
+                # 두 번째 Lambda 함수 호출
+                invoke_response = lambda_client.invoke(
+                    FunctionName='update-access-logs',  # 두 번째 Lambda 함수 이름
+                    InvocationType='Event',  # 비동기 호출 설정
+                    Payload=json.dumps({'dynamodb_id': dynamodb_id, 'bucket_name': bucket_name})
+                )
+                print(f"Second Lambda function invoked with response: {invoke_response}")
+
     return {
         'statusCode': 200,
         'body': json.dumps('Data processing complete')
