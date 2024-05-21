@@ -37,7 +37,6 @@ def lambda_handler(event, context):
     prefix = f'AWSLogs/243795305209/CloudTrail/ap-northeast-1/{year_month}'
     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
 
-    # 새로운 Lambda 클라이언트 생성
     lambda_client = boto3.client('lambda')
 
     for item in response.get('Contents', []):
@@ -86,15 +85,18 @@ def lambda_handler(event, context):
                 else:
                     print(f"Skipping event with unsupported eventName: {record['eventName']}")
                     continue
-
-                # 두 번째 Lambda 함수 호출
-                invoke_response = lambda_client.invoke(
-                    FunctionName='update-access-logs',  # 두 번째 Lambda 함수 이름
-                    InvocationType='Event',  # 비동기 호출 설정
-                    Payload=json.dumps({'dynamodb_id': dynamodb_id, 'bucket_name': bucket_name})
-                )
-                print(f"Second Lambda function invoked with response: {invoke_response}")
-
+    
+    # 첫 번째 함수 실행 완료 후에 두 번째 Lambda 함수 호출
+    try:
+        response = lambda_client.invoke(
+            FunctionName='update-access-logs',  # 두 번째 Lambda 함수 이름
+            InvocationType='RequestResponse',  # 동기 호출 설정
+            Payload=json.dumps({'dynamodb_id': dynamodb_id, 'bucket_name': bucket_name})
+        )
+        print(f"Second Lambda function invoked with response: {response}")
+    except Exception as e:
+        print(f"Error invoking second Lambda function: {e}")
+    
     return {
         'statusCode': 200,
         'body': json.dumps('Data processing complete')
