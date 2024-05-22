@@ -91,7 +91,6 @@ def lambda_handler(event, context):
         response = lambda_client.invoke(
             FunctionName='update-access-logs',  # 두 번째 Lambda 함수 이름
             InvocationType='RequestResponse',  # 동기 호출 설정
-            Payload=json.dumps({'dynamodb_id': dynamodb_id, 'bucket_name': bucket_name})
         )
         print(f"Second Lambda function invoked with response: {response}")
     except Exception as e:
