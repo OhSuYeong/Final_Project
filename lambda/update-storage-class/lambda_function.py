@@ -2,17 +2,15 @@ import boto3
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 
-def get_storage_class(days_difference):
+def get_storage_class(days_difference):  # storage class 결정 함수
     if days_difference <= 30:
         return 'STANDARD'
     elif days_difference <= 90:
         return 'STANDARD_IA'
-    elif days_difference <= 180:
+    else :
         return 'GLACIER'
-    else:
-        return 'DEEP_ARCHIVE'
 
-def get_object_key_by_etag(bucket_name, etag_value):
+def get_object_key_by_etag(bucket_name, etag_value):  # 해당 object로부터 object_key 가져오는 함수
     s3 = boto3.client('s3')
 
     continuation_token = None
@@ -68,6 +66,21 @@ def lambda_handler(event, context):
         # 스토리지 클래스 결정
         new_storage_class = get_storage_class(days_difference)
 
+        # 동일한 스토리지 클래스로 변경하지 않음
+        if current_storage_class == new_storage_class:
+            print(f"Skipping {entity_tag_value} as it is already in the correct storage class {new_storage_class}.")
+            continue
+
+        # 스토리지 클래스 변경 허용 조건 추가
+        valid_transition = False
+        if (current_storage_class in ['STANDARD', 'STANDARD_IA'] and new_storage_class in ['STANDARD', 'STANDARD_IA']) or \
+           (current_storage_class == 'STANDARD_IA' and new_storage_class == 'GLACIER'):
+            valid_transition = True
+
+        if not valid_transition:
+            print(f"Skipping {entity_tag_value} due to invalid storage class transition from {current_storage_class} to {new_storage_class}.")
+            continue
+
         try:
             # DynamoDB에서 해당 객체의 S3 키 가져오기
             object_key = get_object_key_by_etag(bucket_name, entity_tag_value)
@@ -86,22 +99,6 @@ def lambda_handler(event, context):
             else:
                 raise
 
-        # Glacier 및 Deep Archive에서의 복원 필요성 처리
-        if current_storage_class in ['GLACIER', 'DEEP_ARCHIVE']:
-            if new_storage_class not in ['GLACIER', 'DEEP_ARCHIVE']:
-                # 복원이 필요한 경우 복원 요청
-                try:
-                    s3.restore_object(
-                        Bucket=bucket_name,
-                        Key=object_key,
-                        RestoreRequest={'Days': 1, 'GlacierJobParameters': {'Tier': 'Standard'}}
-                    )
-                    print(f"Restore requested for {object_key} in bucket {bucket_name}.")
-                except ClientError as e:
-                    print(f"Error restoring object {object_key} in bucket {bucket_name}: {e}")
-                # 복원이 진행 중인 경우 스토리지 클래스 변경을 건너뜀
-                continue
-
         # 객체 복사 및 스토리지 클래스 변경
         copy_source = {'Bucket': bucket_name, 'Key': object_key}
         try:
@@ -113,6 +110,14 @@ def lambda_handler(event, context):
                 StorageClass=new_storage_class
             )
             print(f"Storage class for {object_key} in bucket {bucket_name} changed to {new_storage_class}.")
+
+            # DynamoDB의 storage_class 필드 업데이트
+            table.update_item(
+                Key={'entity_tag_value': entity_tag_value},
+                UpdateExpression='SET storage_class = :val',
+                ExpressionAttributeValues={':val': new_storage_class}
+            )
+            print(f"DynamoDB updated for {entity_tag_value} with new storage class {new_storage_class}.")
         except ClientError as e:
             print(f"Error copying object {object_key} in bucket {bucket_name}: {e}")
 
@@ -120,4 +125,3 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': 'Storage class update initiated for all objects'
     }
-
