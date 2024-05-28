@@ -8,7 +8,6 @@ s3_client = boto3.client('s3')
 lambda_client = boto3.client('lambda')
 
 def configure_s3_bucket_notification(bucket_name):
-    # 현재 실행 중인 Lambda 함수의 ARN과 이름을 가져옴
     lambda_name = 'Restore-storageclass-update'
     lambda_arn = 'arn:aws:lambda:ap-northeast-1:243795305209:function:Restore-storageclass-update'
     
