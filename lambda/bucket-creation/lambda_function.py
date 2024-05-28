@@ -1,7 +1,6 @@
 import boto3
 import json
 from datetime import datetime
-import os
 import uuid
 
 # AWS 클라이언트 설정
@@ -10,10 +9,8 @@ lambda_client = boto3.client('lambda')
 
 def configure_s3_bucket_notification(bucket_name):
     # 현재 실행 중인 Lambda 함수의 ARN과 이름을 가져옴
-    lambda_name = os.environ['AWS_LAMBDA_FUNCTION_NAME']
-    lambda_region = os.environ['AWS_REGION']
-    lambda_account_id = boto3.client('sts').get_caller_identity().get('Account')
-    lambda_arn = f'arn:aws:lambda:{lambda_region}:{lambda_account_id}:function:{lambda_name}'
+    lambda_name = 'Restore-storageclass-update'
+    lambda_arn = 'arn:aws:lambda:ap-northeast-1:243795305209:function:Restore-storageclass-update'
     
     # 고유한 StatementId 생성
     statement_id = str(uuid.uuid4())
