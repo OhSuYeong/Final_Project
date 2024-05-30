@@ -114,11 +114,8 @@ def lambda_handler(event, context):
         ex) https://s3.ap-northeast-1.amazonaws.com/backup-frontend-s3
         
     
-    [Amazon S3에서 퍼블릭 액세스 차단을 비활성화 했음에도 AccessDenied이 뜨는 경우 해결 방법은? | DevelopersIO](https://dev.classmethod.jp/articles/if-access-denied-appears-even-though-you-disabled-public-access-blocking-on-amazon-s3-what-is-the-workaround/)
-    
-    [https://velog.io/@ygreenb/AWS-S3-정책-권한-설정-시-403-에러](https://velog.io/@ygreenb/AWS-S3-%EC%A0%95%EC%B1%85-%EA%B6%8C%ED%95%9C-%EC%84%A4%EC%A0%95-%EC%8B%9C-403-%EC%97%90%EB%9F%AC)
-    
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1d1f5e17-6d94-451c-9271-c698ee060384/5c41eb25-62a7-4be4-a16e-ff43abc8b777/Untitled.png)
+    ![1](https://github.com/OhSuYeong/Final_Project/assets/101083171/d8dc9d06-b44b-4131-9f40-30c0e1a25962)
+
     
     S3 Bucket에 파일/폴더 업로드 했을 때, 해당 파일&폴더의 URL/URI 형식
     
@@ -175,9 +172,11 @@ def lambda_handler(event, context):
     
     [URL 접근 예시]
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1d1f5e17-6d94-451c-9271-c698ee060384/dfffeeee-bd16-400d-8d35-2470a5c65b1f/Untitled.png)
+    ![2](https://github.com/OhSuYeong/Final_Project/assets/101083171/6def3bbf-1852-4764-bc2d-96b9b0822905)
+
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/1d1f5e17-6d94-451c-9271-c698ee060384/dfffeeee-bd16-400d-8d35-2470a5c65b1f/Untitled.png)
+    ![3](https://github.com/OhSuYeong/Final_Project/assets/101083171/01ec75a8-e847-402d-af75-d4a366d96a54)
+
     
 
 ### **첫 번째 Lambda 함수에서 두 번째 Lambda 함수 호출 추가하기**
